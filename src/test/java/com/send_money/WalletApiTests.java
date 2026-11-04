@@ -97,11 +97,16 @@ class WalletApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.title").value("Send Money API"))
                 .andExpect(jsonPath("$.paths['/api/v1/wallet'].get.summary").value("Get your wallet balance"))
+                .andExpect(jsonPath("$.paths['/api/v1/friends'].get.summary").value("List available friends"))
                 .andExpect(jsonPath("$.paths['/api/v1/wallet'].get.parameters[?(@.name == 'X-User-Id')].required")
+                        .value(contains(true)))
+                .andExpect(jsonPath("$.paths['/api/v1/friends'].get.parameters[?(@.name == 'X-User-Id')].required")
                         .value(contains(true)))
                 .andExpect(jsonPath("$.paths['/api/v1/wallet'].get.responses['400'].content['application/json'].schema['$ref']")
                         .value("#/components/schemas/ApiError"))
+                .andExpect(jsonPath("$.paths['/api/v1/friends'].get.responses['502'].headers['X-Request-Id']").exists())
                 .andExpect(jsonPath("$.components.schemas.WalletBalanceResponse.properties.balance").exists())
+                .andExpect(jsonPath("$.components.schemas.FriendResponse.properties.name").exists())
                 .andExpect(jsonPath("$.components.schemas.ApiError.properties.*", hasSize(1)));
         verifyNoInteractions(directory);
     }
