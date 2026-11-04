@@ -89,6 +89,14 @@ class UserDirectoryClientTests {
     }
 
     @Test
+    void rejectsRecipientMissingFromExternalDirectory() {
+        server.expect(requestTo("https://directory.test/users/2")).andRespond(withStatus(HttpStatus.NOT_FOUND));
+        assertThatThrownBy(() -> client.getRecipientName(2)).isInstanceOfSatisfying(ResponseStatusException.class,
+                ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+        server.verify();
+    }
+
+    @Test
     void fetchesUserListWithOnlyIdsAndNames() {
         server.expect(requestTo("https://directory.test/users"))
                 .andRespond(withSuccess("[{\"id\":2,\"name\":\"Ervin Howell\",\"email\":\"private@example.com\"}]",
