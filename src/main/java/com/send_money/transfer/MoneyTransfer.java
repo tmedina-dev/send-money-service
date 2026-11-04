@@ -2,7 +2,6 @@ package com.send_money.transfer;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.UUID;
 import jakarta.persistence.*;
 
@@ -27,14 +26,15 @@ public class MoneyTransfer {
     protected MoneyTransfer() {
     }
 
-    public MoneyTransfer(long senderId, long recipientId, BigDecimal amount, String key, BigDecimal senderBalance) {
+    public MoneyTransfer(long senderId, long recipientId, BigDecimal amount, String key, BigDecimal senderBalance,
+            OffsetDateTime createdAt) {
         this.id = UUID.randomUUID();
         this.senderId = senderId;
         this.recipientId = recipientId;
         this.amount = amount;
         this.idempotencyKey = key;
         this.senderBalanceAfter = senderBalance;
-        this.createdAt = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        this.createdAt = createdAt;
     }
 
     public boolean matches(TransferRequest request) {

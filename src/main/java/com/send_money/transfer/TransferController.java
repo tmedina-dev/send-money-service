@@ -20,7 +20,7 @@ public class TransferController {
     }
 
     @PostMapping(consumes = "application/json", produces = "application/json")
-    @Operation(summary = "Send money", description = "Validates the recipient externally and atomically updates both wallets and money_transfers. Reusing a key with the same payload returns the original receipt without moving money again.")
+    @Operation(summary = "Send money", description = "Validates the recipient, balance, and configured daily outgoing limit (Asia/Manila), then atomically updates wallets and money_transfers. Reusing a key with the same payload returns the original receipt without counting against the limit again.")
     @ApiResponse(responseCode = "201", description = "Transfer committed")
     @ApiResponse(responseCode = "200", description = "Existing transfer returned for an idempotent retry")
     public ResponseEntity<TransferResponse> send(

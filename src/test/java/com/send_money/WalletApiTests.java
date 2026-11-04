@@ -26,6 +26,9 @@ class WalletApiTests {
     @Autowired
     MockMvc mvc;
 
+    @Autowired
+    org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     @MockitoBean
     UserDirectoryClient directory;
 
@@ -37,7 +40,7 @@ class WalletApiTests {
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.userId").value(1))
                 .andExpect(jsonPath("$.name").value("Leanne Graham"))
-                .andExpect(jsonPath("$.balance").value(10000.00));
+                .andExpect(jsonPath("$.balance").value(storedBalance(1)));
     }
 
     @Test
@@ -47,7 +50,7 @@ class WalletApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(2))
                 .andExpect(jsonPath("$.name").value("Ervin Howell"))
-                .andExpect(jsonPath("$.balance").value(5000.00));
+                .andExpect(jsonPath("$.balance").value(storedBalance(2)));
     }
 
     @Test
@@ -120,5 +123,10 @@ class WalletApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.url").value("/v3/api-docs"));
         verifyNoInteractions(directory);
+    }
+
+    private double storedBalance(long userId) {
+        return jdbc.queryForObject("SELECT balance FROM wallets WHERE user_id = ?", java.math.BigDecimal.class, userId)
+                .doubleValue();
     }
 }

@@ -1,6 +1,7 @@
 package com.send_money.common;
 
 import com.send_money.transfer.InsufficientBalanceException;
+import com.send_money.transfer.DailyTransferLimitExceededException;
 
 import org.springframework.http.ResponseEntity;
 import org.slf4j.Logger;
@@ -18,6 +19,7 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiError> handleResponseStatus(ResponseStatusException exception) {
         log.warn("api_error status={} reason={}", exception.getStatusCode().value(), exception.getReason());
         String message = exception instanceof InsufficientBalanceException ? InsufficientBalanceException.MESSAGE
+                : exception instanceof DailyTransferLimitExceededException ? DailyTransferLimitExceededException.MESSAGE
                 : switch (exception.getStatusCode().value()) {
             case 400 -> "Invalid request.";
             case 404 -> "Requested resource not found.";

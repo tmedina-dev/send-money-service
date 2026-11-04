@@ -1,6 +1,9 @@
 package com.send_money;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.concurrent.*;
 
 import com.send_money.directory.UserDirectoryClient;
@@ -33,10 +36,13 @@ class TransferApiTests {
     @Autowired JdbcTemplate jdbc;
     @Autowired TransferService service;
     @MockitoBean UserDirectoryClient directory;
+    @MockitoBean Clock clock;
 
     @BeforeEach
     void setUp() {
         resetBalances();
+        when(clock.instant()).thenReturn(Instant.parse("2026-11-04T17:00:00Z"));
+        when(clock.getZone()).thenReturn(ZoneOffset.UTC);
         when(directory.getRecipientName(2)).thenReturn("Ervin Howell");
         when(directory.getRecipientName(3)).thenReturn("Clementine Bauch");
     }
@@ -49,6 +55,7 @@ class TransferApiTests {
     private void resetBalances() {
         jdbc.update("DELETE FROM money_transfers");
         jdbc.update("UPDATE wallets SET balance = CASE user_id WHEN 1 THEN 10000.00 WHEN 2 THEN 5000.00 ELSE 2500.00 END WHERE user_id IN (1,2,3)");
+        jdbc.update("INSERT INTO daily_transfer_limits (user_id, daily_limit) VALUES (1,50000),(2,50000),(3,50000) ON CONFLICT (user_id) DO UPDATE SET daily_limit=50000");
     }
 
     @Test
@@ -207,6 +214,91 @@ class TransferApiTests {
         } catch (ResponseStatusException ex) {
             return ex.getStatusCode().value();
         }
+    }
+
+    @Test
+    void allowsExactlyTheDailyLimitAndRejectsOneCentMore() throws Exception {
+        jdbc.update("UPDATE daily_transfer_limits SET daily_limit=150 WHERE user_id=1");
+        send("1", "exact-limit", "{\"recipientId\":2,\"amount\":150}", 201);
+        send("1", "over-limit", "{\"recipientId\":2,\"amount\":0.01}", 409)
+                .andExpect(content().json("{\"detail\":\"Daily transfer limit exceeded. Reduce the amount or try again tomorrow.\"}",
+                        org.springframework.test.json.JsonCompareMode.STRICT));
+        assertBalances("9850", "5150");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM money_transfers", Long.class)).isEqualTo(1);
+    }
+
+    @Test
+    void missingConfigurationFailsClosed() throws Exception {
+        jdbc.update("DELETE FROM daily_transfer_limits WHERE user_id=1");
+        send("1", "missing-limit", "{\"recipientId\":2,\"amount\":1}", 503)
+                .andExpect(content().json("{\"detail\":\"Unable to process your request.\"}"));
+        assertUnchanged();
+    }
+
+    @Test
+    void zeroDailyLimitBlocksOutgoingPayments() throws Exception {
+        jdbc.update("UPDATE daily_transfer_limits SET daily_limit=0 WHERE user_id=1");
+        send("1", "zero-limit", "{\"recipientId\":2,\"amount\":1}", 409);
+        assertUnchanged();
+    }
+
+    @Test
+    void replayDoesNotConsumeTheLimitAgain() throws Exception {
+        jdbc.update("UPDATE daily_transfer_limits SET daily_limit=150 WHERE user_id=1");
+        send("1", "limit-replay", "{\"recipientId\":2,\"amount\":150}", 201);
+        jdbc.update("UPDATE daily_transfer_limits SET daily_limit=0 WHERE user_id=1");
+        send("1", "limit-replay", "{\"recipientId\":2,\"amount\":150}", 200);
+        assertBalances("9850", "5150");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM money_transfers", Long.class)).isEqualTo(1);
+    }
+
+    @Test
+    void usesManilaMidnightAndCountsOnlyOutgoingHistory() throws Exception {
+        jdbc.update("UPDATE daily_transfer_limits SET daily_limit=100 WHERE user_id=1");
+        seedHistory(1, 2, "50000", "2026-11-04T15:59:59.999999Z"); // previous Manila day
+        seedHistory(1, 2, "40", "2026-11-04T16:00:00Z"); // today's start, included
+        seedHistory(1, 2, "30", "2026-11-05T15:59:59.999999Z"); // today's end minus 1 microsecond
+        seedHistory(1, 2, "50000", "2026-11-05T16:00:00Z"); // next Manila day, excluded
+        seedHistory(2, 1, "50000", "2026-11-04T17:00:00Z"); // incoming, excluded
+        send("1", "boundary-exact", "{\"recipientId\":2,\"amount\":30}", 201);
+        send("1", "boundary-over", "{\"recipientId\":2,\"amount\":0.01}", 409);
+        assertBalances("9970", "5030");
+    }
+
+    @Test
+    void dailyAllowanceResetsAtManilaMidnightWithoutDeletingHistory() throws Exception {
+        jdbc.update("UPDATE daily_transfer_limits SET daily_limit=100 WHERE user_id=1");
+        when(clock.instant()).thenReturn(Instant.parse("2026-11-05T15:59:59Z"));
+        send("1", "before-midnight", "{\"recipientId\":2,\"amount\":100}", 201);
+        when(clock.instant()).thenReturn(Instant.parse("2026-11-05T16:00:00Z"));
+        send("1", "after-midnight", "{\"recipientId\":2,\"amount\":100}", 201);
+        assertBalances("9800", "5200");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM money_transfers", Long.class)).isEqualTo(2);
+    }
+
+    @Test
+    void concurrentPaymentsCannotBypassDailyLimit() throws Exception {
+        jdbc.update("UPDATE wallets SET balance=20000 WHERE user_id=1");
+        jdbc.update("UPDATE daily_transfer_limits SET daily_limit=10000 WHERE user_id=1");
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<Integer> first = pool.submit(() -> concurrentSend(start, "daily-1", 2L));
+            Future<Integer> second = pool.submit(() -> concurrentSend(start, "daily-2", 3L));
+            start.countDown();
+            assertThat(java.util.List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(201, 409);
+            assertThat(balance(1)).isEqualByComparingTo("13000");
+            assertThat(jdbc.queryForObject("SELECT SUM(amount) FROM money_transfers WHERE sender_user_id=1", BigDecimal.class))
+                    .isEqualByComparingTo("7000");
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private void seedHistory(long sender, long recipient, String amount, String timestamp) {
+        jdbc.update("INSERT INTO money_transfers (sender_user_id, recipient_user_id, amount, created_at) VALUES (?, ?, ?, ?)",
+                sender, recipient, new BigDecimal(amount), java.time.OffsetDateTime.parse(timestamp));
     }
 
     private org.springframework.test.web.servlet.ResultActions send(String user, String key, String body, int status) throws Exception {
