@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 @Component
@@ -21,9 +22,22 @@ public class UserDirectoryClient {
     }
 
     public String getUserName(long userId) {
+        return fetchName(userId, false);
+    }
+
+    public String getRecipientName(long userId) {
+        return fetchName(userId, true);
+    }
+
+    private String fetchName(long userId, boolean recipient) {
         UserProfile profile;
         try {
             profile = client.get().uri("/users/{id}", userId).retrieve().body(UserProfile.class);
+        } catch (RestClientResponseException ex) {
+            if (recipient && ex.getStatusCode().value() == 404) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recipient not found in user directory", ex);
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "User directory unavailable", ex);
         } catch (RestClientException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "User directory unavailable", ex);
         }
