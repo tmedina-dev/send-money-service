@@ -66,12 +66,12 @@ class TransactionApiTests {
                 .andExpect(jsonPath("$.items", hasSize(3)))
                 .andExpect(jsonPath("$.items[0].transferId").value(TIED))
                 .andExpect(jsonPath("$.items[0].direction").value("SENT"))
-                .andExpect(jsonPath("$.items[0].recipient.userId").value(2))
-                .andExpect(jsonPath("$.items[0].recipient.name").value("Ervin Howell"))
-                .andExpect(jsonPath("$.items[0].counterparty").doesNotExist())
+                .andExpect(jsonPath("$.items[0].counterparty.userId").value(2))
+                .andExpect(jsonPath("$.items[0].counterparty.name").value("Ervin Howell"))
+                .andExpect(jsonPath("$.items[0].recipient").doesNotExist())
                 .andExpect(jsonPath("$.items[1].transferId").value(RECEIVED))
                 .andExpect(jsonPath("$.items[1].direction").value("RECEIVED"))
-                .andExpect(jsonPath("$.items[1].recipient.userId").value(3))
+                .andExpect(jsonPath("$.items[1].counterparty.userId").value(3))
                 .andExpect(jsonPath("$.items[2].transferId").value(SENT))
                 .andExpect(jsonPath("$.items[*].idempotencyKey").isEmpty())
                 .andExpect(jsonPath("$.items[*].senderBalance").isEmpty());
@@ -162,7 +162,7 @@ class TransactionApiTests {
         when(directory.getUsers()).thenThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Directory unavailable"));
         mvc.perform(get("/api/v1/transactions").header("X-User-Id", "1"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(3))
-                .andExpect(jsonPath("$.items[0].recipient.name").value(nullValue()));
+                .andExpect(jsonPath("$.items[0].counterparty.name").value(nullValue()));
         mvc.perform(get("/api/v1/transactions/" + SENT).header("X-User-Id", "2"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.amount").value(150))
                 .andExpect(jsonPath("$.sender.name").value(nullValue()));
