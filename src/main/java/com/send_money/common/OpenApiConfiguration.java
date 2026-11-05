@@ -57,11 +57,14 @@ public class OpenApiConfiguration {
                 operation.getResponses().addApiResponse("404", error("Current user's wallet not found", "Requested resource not found."));
                 operation.getResponses().addApiResponse("502", error("External user directory failed", "Unable to process your request."));
                 if (path.equals("/api/v1/transfers")) {
-                    ApiResponse conflict = error("Insufficient funds, balance capacity, or conflicting retry key", "Unable to process your request.");
+                    ApiResponse conflict = error("Insufficient funds, daily limit exceeded, balance capacity, or conflicting retry key", "Unable to process your request.");
                     conflict.getContent().get("application/json").addExamples("insufficientBalance",
                             new Example().value(java.util.Map.of("detail", com.send_money.transfer.InsufficientBalanceException.MESSAGE)));
+                    conflict.getContent().get("application/json").addExamples("dailyLimitExceeded",
+                            new Example().value(java.util.Map.of("detail", com.send_money.transfer.DailyTransferLimitExceededException.MESSAGE)));
                     operation.getResponses().addApiResponse("409", conflict);
                     operation.getResponses().addApiResponse("500", error("Transfer could not be persisted; changes rolled back", "Unable to process your request."));
+                    operation.getResponses().addApiResponse("503", error("Daily limit configuration unavailable", "Unable to process your request."));
                 }
                 operation.getResponses().values().forEach(response -> response.addHeaderObject("X-Request-Id",
                         new Header().description("Correlation ID for application logs").schema(new StringSchema())));
