@@ -53,9 +53,11 @@ public class OpenApiConfiguration {
                         .description("Optional correlation ID. Invalid or missing IDs are replaced with a UUID.")
                         .schema(new StringSchema().pattern("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"))
                         .example("swagger-request-001"));
-                operation.getResponses().addApiResponse("400", error("Invalid or missing user ID", "Invalid request."));
-                operation.getResponses().addApiResponse("404", error("Current user's wallet not found", "Requested resource not found."));
-                operation.getResponses().addApiResponse("502", error("External user directory failed", "Unable to process your request."));
+                operation.getResponses().addApiResponse("400", error("Missing user ID or invalid request parameters", "Invalid request."));
+                operation.getResponses().addApiResponse("404", error("Wallet or requested resource not found for the caller", "Requested resource not found."));
+                if (!path.startsWith("/api/v1/transactions")) {
+                    operation.getResponses().addApiResponse("502", error("External user directory failed", "Unable to process your request."));
+                }
                 if (path.equals("/api/v1/transfers")) {
                     ApiResponse conflict = error("Insufficient funds, daily limit exceeded, balance capacity, or conflicting retry key", "Unable to process your request.");
                     conflict.getContent().get("application/json").addExamples("insufficientBalance",

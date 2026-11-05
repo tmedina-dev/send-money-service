@@ -33,6 +33,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler({org.springframework.web.bind.MethodArgumentNotValidException.class,
             org.springframework.http.converter.HttpMessageNotReadableException.class,
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
             jakarta.validation.ConstraintViolationException.class})
     public ResponseEntity<ApiError> handleInvalidBody(Exception exception) {
         log.warn("api_error status=400 reason={}", exception.getClass().getSimpleName());
