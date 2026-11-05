@@ -41,6 +41,12 @@ public class MoneyTransfer {
         return recipientId == request.recipientId() && amount.compareTo(request.amount()) == 0;
     }
 
+    public UUID getId() { return id; }
+    public long getSenderId() { return senderId; }
+    public long getRecipientId() { return recipientId; }
+    public BigDecimal getAmount() { return amount; }
+    public OffsetDateTime getCreatedAt() { return createdAt; }
+
     public TransferResponse toResponse(String recipientName) {
         return new TransferResponse(id, senderId, recipientId, recipientName, amount, senderBalanceAfter, createdAt);
     }
