@@ -20,7 +20,7 @@ public class TransactionController {
     }
 
     @GetMapping(produces = "application/json")
-    @Operation(summary = "List your transaction history", description = "Returns sent and received transfers, newest first, with stable ID ordering for equal timestamps. The recipient field identifies the other participant (sender for received transfers). External names are null when unavailable.")
+    @Operation(summary = "List your transaction history", description = "Returns sent and received transfers, newest first, with stable ID ordering for equal timestamps. The counterparty field identifies the recipient for sent transfers and the sender for received transfers. External names are null when unavailable.")
     @ApiResponse(responseCode = "200", description = "Paginated transaction history; items is empty if there are no matching records")
     public ResponseEntity<TransactionHistoryResponse> history(
             @RequestHeader(name = "X-User-Id", required = false) String userId,

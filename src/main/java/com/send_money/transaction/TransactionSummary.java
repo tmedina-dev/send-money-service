@@ -6,7 +6,7 @@ import java.util.UUID;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 public record TransactionSummary(UUID transferId, Direction direction,
-        @Schema(description = "Other participant: the recipient for SENT transfers, or the sender for RECEIVED transfers") TransactionUser recipient,
+        @Schema(description = "Other participant: the recipient for SENT transfers, or the sender for RECEIVED transfers") TransactionUser counterparty,
         BigDecimal amount, OffsetDateTime createdAt) {
     public enum Direction { SENT, RECEIVED }
 }
